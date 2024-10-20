@@ -1,14 +1,9 @@
 #include "SpiceEngine.hpp"
 
-#include "Types.hpp"
 #include <algorithm>
-#include <cassert>
 #include <set>
 #include <tuple>
-
-#if not defined NDEBUG or defined _DEBUG
-#include <iostream>
-#endif
+#include <vector>
 
 namespace spice {
 
@@ -28,19 +23,14 @@ std::vector<std::vector<size_t>> SpiceEngine::netlist_cycles(const std::vector<N
     };
 
     // explicit vector copies, rec allows for recursive lambda call
-    auto find_cycles =
-        [&](size_t node, size_t start, std::vector<bool> seen, std::vector<size_t> nodes, auto& rec) -> void {
-        assert(seen.size() >= node);
-
+    auto find_cycles = [&](size_t node, std::vector<bool> seen, std::vector<size_t> nodes, auto& rec) -> void {
         nodes.push_back(node);
         seen[node] = true;
 
         for (size_t neighbor : netlist[node].adjacent) {
-            if (neighbor < start) { // avoid needless/ambiguous repeats
-                continue;
-            } else if (!seen[neighbor]) {
-                rec(neighbor, start, seen, nodes, rec);
-            } else if (neighbor == start && nodes.size() > 1 && neighbor != nodes.end()[-2]) {
+            if (!seen[neighbor]) {
+                rec(neighbor, seen, nodes, rec);
+            } else if (nodes.size() > 1 && neighbor != nodes.end()[-2]) {
                 std::vector cycle(std::ranges::find(nodes, neighbor), nodes.end());
 
                 std::ranges::rotate(cycle, std::ranges::min_element(cycle) + 1);
@@ -53,17 +43,13 @@ std::vector<std::vector<size_t>> SpiceEngine::netlist_cycles(const std::vector<N
                 if (processed.contains(h1))
                     continue;
 
-                processed.insert({h0, h1});
                 cycles.push_back(cycle);
+                processed.insert({h0, h1});
             }
         }
     };
 
-    std::vector<bool> seen(netlist.size(), false);
-
-    for (size_t i = 0; i < netlist.size(); i++) {
-        find_cycles(i, i, seen, {}, find_cycles);
-    }
+    find_cycles(0, std::vector(netlist.size(), false), {}, find_cycles);
 
     return cycles;
 }
